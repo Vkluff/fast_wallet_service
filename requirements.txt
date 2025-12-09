@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+python-jose[cryptography]
+passlib
+requests
+python-dotenv
+asyncpg
+sqlalchemy[asyncio]
+aiosqlite
