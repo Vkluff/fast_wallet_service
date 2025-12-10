@@ -4,21 +4,21 @@ from typing import Annotated
 from core.api_key_manager import generate_api_key, rollover_api_key
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.db import get_db
-from dependencies.auth import get_current_user_id_from_jwt
+from dependencies.auth import get_current_user_id
 from schemas.keys import APIKeyCreate, APIKeyResponse, APIKeyRollover
 
 
 router = APIRouter(
     prefix="/keys",
     tags=["API Key Management"],
-    dependencies=[Depends(get_current_user_id_from_jwt)] # Only JWT users can manage keys
+    dependencies=[Depends(get_current_user_id)]  # Require valid JWT or API key
 )
 
 @router.post("/create", response_model=APIKeyResponse, summary="Create a new API Key")
 async def create_key(
     db: Annotated[AsyncSession, Depends(get_db)],
     key_data: APIKeyCreate,
-    user_id: Annotated[str, Depends(get_current_user_id_from_jwt)]
+    user_id: Annotated[str, Depends(get_current_user_id)]
 ):
     """
     Allows a user to create a new API key for service-to-service access.
@@ -44,7 +44,7 @@ async def create_key(
 async def rollover_key(
     db: Annotated[AsyncSession, Depends(get_db)],
     rollover_data: APIKeyRollover,
-    user_id: Annotated[str, Depends(get_current_user_id_from_jwt)]
+    user_id: Annotated[str, Depends(get_current_user_id)]
 ):
     """
     Creates a new API key with the same permissions as an expired key.

@@ -9,6 +9,11 @@ def initialize_transaction(email: str, amount: int, reference: str) -> Dict[str,
     Initializes a Paystack transaction.
     Amount is in the smallest currency unit (e.g., kobo for Naira).
     """
+    if settings.PAYSTACK_SECRET_KEY.startswith("sk_test_mock"):
+        return {
+            "status": True,
+            "data": {"authorization_url": f"https://paystack.co/checkout/{reference}"}
+        }
     url = f"{PAYSTACK_BASE_URL}/transaction/initialize"
     headers = {
         "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
@@ -43,4 +48,3 @@ def verify_transaction(reference: str) -> Dict[str, Any]:
     except requests.exceptions.RequestException as e:
         print(f"Paystack verification failed: {e}")
         return {"status": False, "message": str(e)}
-

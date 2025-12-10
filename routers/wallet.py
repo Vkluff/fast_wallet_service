@@ -6,7 +6,7 @@ from core.wallet_service import (
     get_user_by_email, get_transaction_by_reference,
     initiate_deposit, handle_paystack_webhook, 
     get_wallet_balance, get_transaction_history, 
-    transfer_funds
+    transfer_funds, get_user_by_id
 )
 
 from dependencies.auth import (
@@ -36,8 +36,7 @@ async def deposit(
     Returns a Paystack authorization URL for the user to complete the payment.
     """
     try:
-        # Get user email for Paystack (required)
-        user = await get_user_by_email(db, user_id)
+        user = await get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
             
@@ -126,4 +125,3 @@ async def transactions(
         return [Transaction.model_validate(t) for t in history]
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-

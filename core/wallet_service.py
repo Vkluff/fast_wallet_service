@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from core.models import User, Wallet, Transaction
-from core.security import get_password_hash
+from core.paystack_client import initialize_transaction
 from schemas.wallet import DepositResponse
 
 
@@ -20,10 +20,7 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
 async def create_user(db: AsyncSession, email: str, name: str) -> User:
     # 1. Create User
     # Since this is a mock Google login, we set a short, safe placeholder password
-    placeholder_password = "mock_password"
-    hashed_password = get_password_hash(placeholder_password)
-    
-    new_user = User(email=email, name=name, hashed_password=hashed_password)
+    new_user = User(email=email, name=name)
     db.add(new_user)
     await db.flush() # Flush to get the user ID
 

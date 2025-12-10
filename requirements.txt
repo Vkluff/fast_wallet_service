@@ -1,6 +1,8 @@
 fastapi
 uvicorn
 pydantic
+pydantic-settings
+email-validator
 python-jose[cryptography]
 passlib
 requests
