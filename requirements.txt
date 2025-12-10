@@ -10,3 +10,4 @@ python-dotenv
 asyncpg
 sqlalchemy[asyncio]
 aiosqlite
+asgiref

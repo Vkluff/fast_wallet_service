@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.wallet_service import (
     get_user_by_email, get_transaction_by_reference,
-    initiate_deposit, handle_paystack_webhook, 
-    get_wallet_balance, get_transaction_history, 
-    transfer_funds, get_user_by_id
+    initiate_deposit, handle_paystack_webhook,
+    get_wallet_balance, get_transaction_history,
+    transfer_funds, get_user_by_id, get_wallet_by_user_id
 )
 
 from dependencies.auth import (
@@ -105,8 +105,10 @@ async def balance(
     Requires JWT or API Key with 'read' permission.
     """
     try:
-        balance = await get_wallet_balance(db, user_id)
-        return {"balance": balance}
+        wallet = await get_wallet_by_user_id(db, user_id)
+        if not wallet:
+            raise ValueError("Wallet not found for user.")
+        return {"balance": wallet.balance, "wallet_number": wallet.wallet_number}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

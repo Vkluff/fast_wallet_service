@@ -27,7 +27,7 @@ async def paystack_webhook_endpoint(
     # 2. CRITICAL: Verify it's really from Paystack
     # Note: We use PAYSTACK_SECRET_KEY for webhook verification
     expected_signature = hmac.new(
-        settings.PAYSTACK_WEBHOOK_SECRET.encode("utf-8"),
+        settings.PAYSTACK_SECRET_KEY.encode("utf-8"),
         payload,
         hashlib.sha512
     ).hexdigest()
