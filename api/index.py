@@ -1,5 +1,7 @@
-from asgiref.wsgi import AsgiToWsgi
+try:
+    from asgiref.wsgi import ASGItoWSGI as Adapter
+except ImportError:
+    from asgiref.wsgi import AsgiToWsgi as Adapter
 from main import app as fastapi_app
 
-# Expose a WSGI-compatible app for Vercel's Python runtime
-app = AsgiToWsgi(fastapi_app)
+app = Adapter(fastapi_app)
