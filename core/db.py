@@ -7,7 +7,7 @@ from core.models import Base
 # Create the asynchronous engine
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=True, # Set to False in production
+    connect_args={"ssl": True} # Set to False in production
 )
 # Create the asynchronous session factory
 AsyncSessionLocal = sessionmaker(
