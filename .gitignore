@@ -27,3 +27,5 @@ ENV/
 .env.dev
 .env.prod
 *.sqlite3
+
+test2.py
