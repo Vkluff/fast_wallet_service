@@ -19,6 +19,21 @@ class APIKeyResponse(ORMBase):
     api_key: str = Field(..., description="The newly generated API key.")
     expires_at: datetime = Field(..., description="The expiration date and time.")
 
+class APIKeyDetail(ORMBase):
+    """Schema for listing API key metadata (excluding the raw key)."""
+    id: str
+    name: str
+    permissions: List[str]
+    expires_at: datetime
+    is_active: bool
+
+class APIKeyListResponse(BaseModel):
+    """Response model for the /keys/list endpoint."""
+    keys: List[APIKeyDetail]
+
 class APIKeyRollover(BaseModel):
     expired_key_id: str = Field(..., description="The ID of the expired key to rollover.")
     expiry: str = Field(..., description="New expiry duration (e.g., '1H', '1D', '1M', '1Y').")
+
+
+

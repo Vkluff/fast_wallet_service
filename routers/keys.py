@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
 
-from core.api_key_manager import generate_api_key, rollover_api_key
+from core.api_key_manager import generate_api_key, rollover_api_key, get_all_api_keys, revoke_api_key
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.db import get_db
-from dependencies.auth import get_current_user_id
-from schemas.keys import APIKeyCreate, APIKeyResponse, APIKeyRollover
+from dependencies.auth import get_current_user_id, get_current_user_id_from_jwt
+from schemas.keys import APIKeyCreate, APIKeyResponse, APIKeyRollover, APIKeyListResponse
+from schemas.common import MessageResponse
 
 
 router = APIRouter(
@@ -64,3 +65,36 @@ async def rollover_key(
         return APIKeyResponse(api_key=result["api_key"], expires_at=result["expires_at"])
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+@router.get("/list", response_model=APIKeyListResponse, summary="List all API Keys for the user")
+async def list_keys(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_id: Annotated[str, Depends(get_current_user_id_from_jwt)]
+):
+    """
+    Retrieves a list of all API keys (active and inactive) associated with the current user.
+    
+    - Requires JWT authentication.
+    - Does NOT return the raw key, only the metadata.
+    """
+    keys = await get_all_api_keys(db, user_id)
+    return APIKeyListResponse(keys=keys)
+
+@router.post("/revoke/{key_id}", response_model=MessageResponse, summary="Revoke an active API Key")
+async def revoke_key(
+    key_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_id: Annotated[str, Depends(get_current_user_id_from_jwt)]
+):
+    """
+    Immediately revokes an active API key, making it unusable.
+    
+    - Requires JWT authentication.
+    - The key is deactivated (is_active=False).
+    """
+    revoked = await revoke_api_key(db, user_id, key_id)
+    
+    if not revoked:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API Key not found or already revoked.")
+        
+    return MessageResponse(message=f"API Key '{key_id}' successfully revoked.")

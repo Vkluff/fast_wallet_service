@@ -98,6 +98,32 @@ async def get_api_key_data(db: AsyncSession, raw_key: str) -> APIKey | None:
         return None
     return key_data
 
+async def get_all_api_keys(db: AsyncSession, user_id: str) -> List[APIKey]:
+    """Retrieves all API keys (active and inactive) for a user."""
+    from core.models import APIKey # Import locally to avoid circular dependency issues
+    
+    stmt = select(APIKey).where(APIKey.user_id == user_id).order_by(APIKey.created_at.desc())
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+async def revoke_api_key(db: AsyncSession, user_id: str, key_id: str) -> bool:
+    """Revokes a specific API key by setting is_active to False."""
+    from core.models import APIKey # Import locally
+    
+    stmt = select(APIKey).where(
+        APIKey.id == key_id,
+        APIKey.user_id == user_id,
+        APIKey.is_active == True
+    )
+    result = await db.execute(stmt)
+    key_to_revoke = result.scalar_one_or_none()
+    
+    if key_to_revoke:
+        key_to_revoke.is_active = False
+        return True
+    
+    return False
+
 
 # ---------------- ROLLOVER API KEY ---------------- #
 
