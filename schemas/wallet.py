@@ -27,10 +27,22 @@ class TransferResponse(BaseModel):
     status: str = Field(..., description="Transfer status: success|failed")
     message: str
 
+class TransactionMeta(BaseModel):
+    """Schema for transaction metadata."""
+    email: str | None = Field(None, description="Email associated with the transaction")
+    user_id: str | None = Field(None, description="User ID associated with the transaction")
+    recipient_wallet_number: str | None = Field(None, description="Recipient's wallet number for transfers")
+    recipient_user_id: str | None = Field(None, description="Recipient's user ID for transfers")
+    sender_user_id: str | None = Field(None, description="Sender's user ID for transfers")
+    sender_wallet_number: str | None = Field(None, description="Sender's wallet number for transfers")
+
 class Transaction(ORMBase):
+    """Transaction model for API responses."""
     type: str = Field(..., description="Transaction type: deposit|transfer_out|transfer_in")
-    amount: int
+    amount: int = Field(..., description="Transaction amount in the smallest currency unit")
     status: str = Field(..., description="Transaction status: success|failed|pending")
+    reference: str = Field(..., description="Unique transaction reference")
+    meta: TransactionMeta = Field(default_factory=dict, description="Additional transaction metadata")
 
 class TransactionHistoryResponse(RootModel[List[Transaction]]):
     pass

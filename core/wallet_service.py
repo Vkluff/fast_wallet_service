@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from core.models import User, Wallet, Transaction
+from core.models import User, Wallet, Transaction, TransactionMeta
 from core.paystack_client import initialize_transaction
 from schemas.wallet import DepositResponse
 
@@ -67,7 +67,7 @@ async def initiate_deposit(db: AsyncSession, user_id: str, amount: int, email: s
         amount=amount,
         status="pending",
         reference=reference,
-        meta={"email": email, "user_id": user_id} # Store user_id for webhook lookup
+        meta={"email": email, "user_id": user_id}  # Store user_id for webhook lookup
     )
     db.add(new_transaction)
     await db.flush() # Ensure transaction is in DB before calling Paystack
@@ -87,20 +87,21 @@ async def initiate_deposit(db: AsyncSession, user_id: str, amount: int, email: s
 
 async def handle_paystack_webhook(db: AsyncSession, payload: Dict[str, Any]) -> bool:
     """
-    Handles Paystack webhook – credits wallet only on success.
+    Handles Paystack webhook – credits wallet on success and marks failed transactions.
     Fully idempotent and atomic.
-    Detects both success and failed events.
     """
     event = payload.get("event")
-    # Only process charge events
     if not event or not event.startswith("charge."):
+        # Ignore unrelated events
         return False
 
+    # Determine event type
     is_success = event == "charge.success"
-    is_failure = event == "charge.failed"
+    # Treat charge.failed or any declined events as failure
+    is_failure = event in ["charge.failed", "charge.returned", "charge.dispute.create"]
 
     if not is_success and not is_failure:
-        # Ignore other charge events like charge.dispute.create, etc.
+        # Ignore other charge events
         return False
 
     data = payload.get("data", {})
@@ -110,44 +111,49 @@ async def handle_paystack_webhook(db: AsyncSession, payload: Dict[str, Any]) -> 
     if not reference:
         return False
 
-    # Find the transaction by reference
-    transaction = await get_transaction_by_reference(db, reference)
+    # Fetch the transaction by reference
+    transaction = await db.execute(
+        Transaction.__table__.select().where(Transaction.reference == reference)
+    )
+    transaction = transaction.scalar_one_or_none()
     if not transaction:
-        # Critical: transaction not found
+        # Transaction not found
         return False
 
-    # Idempotency – already processed?
+    # Idempotency – if already processed, do nothing
     if transaction.status != "pending":
-        return True  # Already handled (success or failed)
-
-    # --- Handle failed payment ---
-    if is_failure:
-        transaction.status = "failed"
-        # Optionally log the failure reason:
-        # reason = data.get("gateway_response") or data.get("reason")
         return True
 
-    # --- Handle successful payment ---
+    # Get meta data from transaction
+    meta_data = transaction.meta or {}
+    if not isinstance(meta_data, dict):
+        # Handle case where meta is not a dictionary
+        meta_data = {}
+        
+    user_id = meta_data.get("user_id")
+    if not user_id:
+        return False
+
+    # Fetch user's wallet
+    wallet = await db.execute(
+        Wallet.__table__.select().where(Wallet.user_id == user_id)
+    )
+    wallet = wallet.scalar_one_or_none()
+    if not wallet:
+        return False
+
+    # Process event
     if is_success:
-        user_id = transaction.meta.get("user_id")
-        if not user_id:
-            # Critical: user_id missing from meta
-            return False
-
-        wallet = await get_wallet_by_user_id(db, user_id)
-        if not wallet:
-            # Critical: wallet not found
-            return False
-
         # Credit wallet
         wallet.balance += amount_kobo
-
-        # Update transaction status
         transaction.status = "success"
+    elif is_failure:
+        # Mark transaction failed
+        transaction.status = "failed"
 
-        return True
-
-    return False
+    # Commit changes to persist
+    await db.commit()
+    return True
 
 async def get_wallet_balance(db: AsyncSession, user_id: str) -> int:
     """Retrieves the current wallet balance for a user."""
@@ -198,7 +204,12 @@ async def transfer_funds(db: AsyncSession, sender_user_id: str, recipient_wallet
         amount=amount,
         status="success",
         reference=f"TRF-{uuid.uuid4().hex[:10]}-{sender_user_id[:4]}",
-        meta={"recipient_wallet_number": recipient_wallet_number, "recipient_user_id": recipient_wallet.user_id}
+        meta={
+            "recipient_wallet_number": recipient_wallet_number,
+            "recipient_user_id": str(recipient_wallet.user_id),
+            "sender_user_id": sender_user_id,
+            "sender_wallet_number": sender_wallet.wallet_number
+        }
     )
     db.add(sender_transaction)
     
@@ -211,7 +222,12 @@ async def transfer_funds(db: AsyncSession, sender_user_id: str, recipient_wallet
         amount=amount,
         status="success",
         reference=f"TRF-{uuid.uuid4().hex[:10]}-{recipient_wallet.user_id[:4]}",
-        meta={"sender_user_id": sender_user_id, "sender_wallet_number": sender_wallet.wallet_number}
+        meta={
+            "sender_user_id": sender_user_id,
+            "sender_wallet_number": sender_wallet.wallet_number,
+            "recipient_wallet_number": recipient_wallet_number,
+            "recipient_user_id": str(recipient_wallet.user_id)
+        }
     )
     db.add(recipient_transaction)
     

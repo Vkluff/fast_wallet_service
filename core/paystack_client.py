@@ -23,7 +23,7 @@ def initialize_transaction(email: str, amount: int, reference: str) -> Dict[str,
         "email": email,
         "amount": amount,
         "reference": reference,
-        "callback_url": f"{settings.BASE_URL}/wallet/deposit/callback"
+        "callback_url": f"{settings.BASE_URL}/wallet/deposit/{reference}/status"
     }
     try:
         response = requests.post(url, headers=headers, json=payload)

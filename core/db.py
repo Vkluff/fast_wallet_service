@@ -7,7 +7,7 @@ from core.models import Base
 # Create the asynchronous engine
 engine = create_async_engine(
     settings.DATABASE_URL,
-    connect_args={"ssl": True} # Set to False in production
+    connect_args={"ssl": True} if settings.DATABASE_URL.startswith("postgresql+asyncpg") else {}
 )
 # Create the asynchronous session factory
 AsyncSessionLocal = sessionmaker(
