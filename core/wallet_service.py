@@ -5,7 +5,8 @@ from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from core.models import User, Wallet, Transaction, TransactionMeta
+from core.models import User, Wallet, Transaction
+from schemas.wallet import TransactionMeta
 from core.paystack_client import initialize_transaction
 from schemas.wallet import DepositResponse
 
