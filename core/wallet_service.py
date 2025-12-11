@@ -89,9 +89,18 @@ async def handle_paystack_webhook(db: AsyncSession, payload: Dict[str, Any]) -> 
     """
     Handles Paystack webhook – credits wallet only on success.
     Fully idempotent and atomic.
+    Detects both success and failed events.
     """
     event = payload.get("event")
-    if event != "charge.success":
+    # Only process charge events
+    if not event or not event.startswith("charge."):
+        return False
+
+    is_success = event == "charge.success"
+    is_failure = event == "charge.failed"
+
+    if not is_success and not is_failure:
+        # Ignore other charge events like charge.dispute.create, etc.
         return False
 
     data = payload.get("data", {})
@@ -101,39 +110,41 @@ async def handle_paystack_webhook(db: AsyncSession, payload: Dict[str, Any]) -> 
     if not reference:
         return False
 
-    # Find our pending transaction
+    # Find the transaction by reference
     transaction = await get_transaction_by_reference(db, reference)
     if not transaction:
-        # This is a critical error, log and alert
+        # Critical: transaction not found
         return False
 
-    # Idempotency – already credited?
-    if transaction.status == "success":
+    # Idempotency – already processed?
+    if transaction.status != "pending":
+        return True  # Already handled (success or failed)
+
+    # --- Handle failed payment ---
+    if is_failure:
+        transaction.status = "failed"
+        # Optionally log the failure reason:
+        # reason = data.get("gateway_response") or data.get("reason")
         return True
 
-    if transaction.status == "pending":
+    # --- Handle successful payment ---
+    if is_success:
         user_id = transaction.meta.get("user_id")
         if not user_id:
-            # Critical error: user_id missing from meta
+            # Critical: user_id missing from meta
             return False
 
         wallet = await get_wallet_by_user_id(db, user_id)
         if not wallet:
-            # Critical error: wallet not found
+            # Critical: wallet not found
             return False
 
-        # Convert kobo → your currency (e.g., Naira)
-        # Note: Paystack amount is in the smallest currency unit (e.g., kobo).
-        # We assume the 'amount' stored in our transaction is also in the smallest unit.
-        # For simplicity, we use the amount from the webhook data.
-        
-        # 1. Credit wallet
+        # Credit wallet
         wallet.balance += amount_kobo
-        
-        # 2. Update transaction status
+
+        # Update transaction status
         transaction.status = "success"
-        
-        # The session commit in get_db dependency will save changes
+
         return True
 
     return False
